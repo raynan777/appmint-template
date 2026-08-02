@@ -4,37 +4,42 @@ on:
     inputs:
       appName: { description: 'App Name', required: true, default: 'My App' }
       url: { description: 'Website URL', required: true, default: 'https://example.com' }
-      packageId: { description: 'Package ID', required: true, default: 'com.appmint.myapp' }
+      packageId: { description: 'Package ID com.xxx', required: true, default: 'com.appmint.myapp' }
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Inject Config
         run: |
+          echo "Input: ${{ inputs.appName }} | ${{ inputs.url }} | ${{ inputs.packageId }}"
+          PKG="${{ inputs.packageId }}"
+          URL="${{ inputs.url }}"
+          # Anti salah input - kalo package mengandung https, fix otomatis
+          if [[ "$PKG" == *"https"* ]]; then
+            echo "Package salah isi URL! Auto fix ke com.appmint.myapp"
+            PKG="com.appmint.myapp"
+            URL="$PKG"
+            # tuker
+            URL="${{ inputs.url }}"
+            if [[ "$URL" != *"http"* ]]; then
+              URL="${{ inputs.packageId }}"
+            fi
+          fi
+          if [[ "$URL" != *"http"* ]]; then URL="https://${URL}"; fi
+          echo "Final: $PKG - $URL"
           mkdir -p app/src/main/assets
-          echo "{\"url\":\"${{ inputs.url }}\"}" > app/src/main/assets/config.json
-          sed -i "s#SITE_URL =.*#SITE_URL = \"${{ inputs.url }}\";#" app/src/main/java/com/appmint/template/MainActivity.java
-          sed -i "s#applicationId \".*\"#applicationId \"${{ inputs.packageId }}\"#" app/build.gradle
+          echo "{\"url\":\"$URL\"}" > app/src/main/assets/config.json
+          sed -i "s#SITE_URL =.*#SITE_URL = \"$URL\";#" app/src/main/java/com/appmint/template/MainActivity.java
+          sed -i "s#applicationId \".*\"#applicationId \"$PKG\"#" app/build.gradle
           sed -i "s#<string name=\"app_name\">.*</string>#<string name=\"app_name\">${{ inputs.appName }}</string>#" app/src/main/res/values/strings.xml
-
       - uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
+        with: { distribution: 'temurin', java-version: '17' }
       - uses: android-actions/setup-android@v3
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: 8.5
-
-      - name: Build Debug APK
-        run: gradle assembleDebug --no-daemon
-
+      - uses: gradle/actions/setup-gradle@v3
+        with: { gradle-version: 8.5 }
+      - run: gradle assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.appName }}-apk
