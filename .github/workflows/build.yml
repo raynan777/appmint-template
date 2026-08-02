@@ -11,26 +11,30 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Inject Config
         run: |
-          echo "Building ${{ inputs.appName }} - ${{ inputs.url }} - ${{ inputs.packageId }}"
           mkdir -p app/src/main/assets
           echo "{\"url\":\"${{ inputs.url }}\"}" > app/src/main/assets/config.json
-          # Use # as delimiter biar https:// aman
-          sed -i "s#private final String SITE_URL =.*#private final String SITE_URL = \"${{ inputs.url }}\";#" app/src/main/java/com/appmint/template/MainActivity.java
+          sed -i "s#SITE_URL =.*#SITE_URL = \"${{ inputs.url }}\";#" app/src/main/java/com/appmint/template/MainActivity.java
           sed -i "s#applicationId \".*\"#applicationId \"${{ inputs.packageId }}\"#" app/build.gradle
           sed -i "s#<string name=\"app_name\">.*</string>#<string name=\"app_name\">${{ inputs.appName }}</string>#" app/src/main/res/values/strings.xml
-          cat app/src/main/assets/config.json
-          cat app/src/main/java/com/appmint/template/MainActivity.java | grep SITE_URL
+
       - uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
+
       - uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.5
+
       - name: Build Debug APK
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
+        run: gradle assembleDebug --no-daemon
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.appName }}-apk
